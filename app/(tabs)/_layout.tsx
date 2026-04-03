@@ -1,14 +1,18 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, TouchableOpacity, Text, Image } from "react-native";
+import { View, TouchableOpacity, Text, Image, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Animated, {
+  useAnimatedStyle,
+  withSpring,
+  useSharedValue,
+} from "react-native-reanimated";
 import "../../global.css";
 
-// 1. Define the TabName type to match your route names exactly
-type TabName = "home" | "bookings" | "accounts";
+// 1. Match the filename: 'home_grounds'
+type TabName = "home" | "bookings" | "home_grounds" | "accounts";
 
-// 2. Type the icons object using Record
 const icons: Record<TabName, { solid: any; outlined: any }> = {
   home: {
     solid: require("../../assets/icons/home-solid.png"),
@@ -18,29 +22,58 @@ const icons: Record<TabName, { solid: any; outlined: any }> = {
     solid: require("../../assets/icons/calendar-solid.png"),
     outlined: require("../../assets/icons/calender-outlined.png"),
   },
-  accounts: {
-    solid: require("../../assets/icons/account-solid.png"),
-    outlined: require("../../assets/icons/account-outlined.png"),
+  home_grounds: {
+    // Updated key to match filename
+    solid: require("../../assets/icons/ground-solid.png"),
+    outlined: require("../../assets/icons/ground-outlined.png"),
   },
+  accounts: { solid: null, outlined: null },
 };
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const ORIGINAL_WIDTH = SCREEN_WIDTH - 48;
+const NAV_WIDTH = ORIGINAL_WIDTH * 0.85; // Slightly wider for 4 tabs
+const TAB_WIDTH = NAV_WIDTH / 4;
 
 function MyTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
+  const translateX = useSharedValue(0);
+
+  useEffect(() => {
+    translateX.value = withSpring(state.index * TAB_WIDTH, {
+      damping: 14,
+      stiffness: 150,
+      mass: 0.8,
+    });
+  }, [state.index]);
+
+  const animatedPillStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
   return (
     <View
-      className="absolute left-16 right-16 flex-row items-center justify-around bg-primary rounded-[24px] px-2 shadow-2xl"
+      className="absolute self-center flex-row items-center bg-white rounded-full shadow-2xl border border-black/5"
       style={{
-        bottom: insets.bottom > 0 ? insets.bottom : 30,
-        height: 64,
-        elevation: 10,
+        width: NAV_WIDTH,
+        bottom: insets.bottom > 0 ? insets.bottom : 20,
+        height: 72,
       }}
     >
+      <Animated.View
+        className="absolute h-[80%] bg-accent/10 rounded-full"
+        style={[
+          { width: TAB_WIDTH - 8, marginHorizontal: 4 },
+          animatedPillStyle,
+        ]}
+      />
+
       {state.routes.map((route: any, index: number) => {
         const isFocused = state.index === index;
-
-        // 3. Cast route.name as TabName so TypeScript allows the indexing
         const routeName = route.name as TabName;
+
+        // SAFE CHECK: If the route isn't in our icon list, skip rendering to prevent crash
+        if (!icons[routeName] && routeName !== "accounts") return null;
 
         const onPress = () => {
           const event = navigation.emit({
@@ -48,42 +81,57 @@ function MyTabBar({ state, navigation }: any) {
             target: route.key,
             canPreventDefault: true,
           });
-
-          if (!isFocused && !event.defaultPrevented) {
+          if (!isFocused && !event.defaultPrevented)
             navigation.navigate(route.name);
-          }
         };
 
-        // Now TypeScript is happy because routeName is guaranteed to be a key of icons
-        const iconSource = isFocused
-          ? icons[routeName].solid
-          : icons[routeName].outlined;
-        const iconColor = isFocused ? "#081126" : "#fff9e3";
+        const getLabel = (name: string) => {
+          if (name === "home_grounds") return "Grounds";
+          if (name === "accounts") return "Profile";
+          return name;
+        };
 
         return (
           <TouchableOpacity
             key={route.key}
             onPress={onPress}
-            activeOpacity={0.7}
-            className={`flex-row items-center justify-center px-5 py-2 rounded-[16px] ${
-              isFocused ? "tabs-active" : "bg-transparent"
-            }`}
+            activeOpacity={0.6}
+            style={{ width: TAB_WIDTH }}
+            className="items-center justify-center pt-1"
           >
-            <Image
-              source={iconSource}
-              style={{
-                width: 26,
-                height: 26,
-                tintColor: iconColor,
-              }}
-              resizeMode="contain"
-            />
-
-            {isFocused && (
-              <Text className="ml-2 text-xs font-sans-bold text-primary capitalize">
-                {route.name}
-              </Text>
-            )}
+            <View className="items-center justify-center mb-0.5">
+              {routeName === "accounts" ? (
+                <View
+                  className={`size-7 rounded-full items-center justify-center ${isFocused ? "bg-accent" : "bg-primary/10"}`}
+                >
+                  <Text
+                    className={`text-[8px] font-sans-bold ${isFocused ? "text-white" : "text-primary"}`}
+                  >
+                    PS
+                  </Text>
+                </View>
+              ) : (
+                <Image
+                  source={
+                    isFocused
+                      ? icons[routeName].solid
+                      : icons[routeName].outlined
+                  }
+                  style={{
+                    width: 20,
+                    height: 20,
+                    tintColor: isFocused ? "#ea7a53" : "#08112640",
+                  }}
+                  resizeMode="contain"
+                />
+              )}
+            </View>
+            <Text
+              style={{ fontSize: 9 }}
+              className={`font-sans-bold capitalize ${isFocused ? "text-accent" : "text-primary/30"}`}
+            >
+              {getLabel(route.name)}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -101,6 +149,7 @@ export default function TabLayout() {
       >
         <Tabs.Screen name="home" />
         <Tabs.Screen name="bookings" />
+        <Tabs.Screen name="home_grounds" />
         <Tabs.Screen name="accounts" />
       </Tabs>
     </>
