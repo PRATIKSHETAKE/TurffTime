@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 
-// --- ICONS FROM ASSETS/ICONS ---
+// --- AMENITIES ICONS ---
 const PARKING_ICON = require("../assets/icons/parking_white.png");
 const LIGHT_ICON = require("../assets/icons/light_white.png");
 const WATER_ICON = require("../assets/icons/water_white.png");
@@ -17,37 +17,27 @@ const SEAT_ICON = require("../assets/icons/seat_white.png");
 const STAR_FULL = require("../assets/icons/star-white.png");
 const STAR_HALF = require("../assets/icons/half-star-white.png");
 
-interface TurfCardProps {
-  turf: Turf;
-  onPress?: () => void;
-}
-
-export default function TurfCard({ turf, onPress }: TurfCardProps) {
-  // NORMALIZE RATING: Handles strings from PostgreSQL and prevents 'NaN'
+export default function TurfCard({ turf }: { turf: Turf }) {
   const ratingValue = parseFloat(turf.rating as any) || 0;
 
   const renderStars = () => {
     const stars = [];
     for (let i = 1; i <= 5; i++) {
       if (i <= Math.floor(ratingValue)) {
-        // FULL STAR
         stars.push(
           <Image
-            key={`f-${i}`}
+            key={i}
             source={STAR_FULL}
             className="size-4 mr-0.5"
-            resizeMode="contain"
             style={{ tintColor: "white" }}
           />,
         );
       } else if (i === Math.ceil(ratingValue) && ratingValue % 1 !== 0) {
-        // HALF STAR
         stars.push(
           <Image
             key="h"
             source={STAR_HALF}
             className="size-4 mr-0.5"
-            resizeMode="contain"
             style={{ tintColor: "white" }}
           />,
         );
@@ -58,7 +48,6 @@ export default function TurfCard({ turf, onPress }: TurfCardProps) {
 
   return (
     <TouchableOpacity
-      onPress={onPress}
       activeOpacity={0.95}
       className="mb-6 rounded-[32px] border border-border overflow-hidden"
     >
@@ -67,7 +56,6 @@ export default function TurfCard({ turf, onPress }: TurfCardProps) {
           uri: "https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&q=80&w=800",
         }}
         className="h-[180px] w-full"
-        resizeMode="cover"
       >
         <View className="flex-1 justify-end">
           <LinearGradient
@@ -75,7 +63,6 @@ export default function TurfCard({ turf, onPress }: TurfCardProps) {
             className="p-5 pt-12"
           >
             <View className="flex-row justify-between items-end">
-              {/* LEFT: INFO & DYNAMIC STARS */}
               <View className="flex-1 mr-4">
                 <Text
                   className="text-2xl font-sans-extrabold text-white mb-0.5"
@@ -83,10 +70,7 @@ export default function TurfCard({ turf, onPress }: TurfCardProps) {
                 >
                   {turf.name}
                 </Text>
-                <Text
-                  className="text-sm font-sans-medium text-white/70 mb-2"
-                  numberOfLines={1}
-                >
+                <Text className="text-sm font-sans-medium text-white/70 mb-2">
                   {turf.location}
                 </Text>
                 <View className="flex-row items-center mt-1">
@@ -99,22 +83,44 @@ export default function TurfCard({ turf, onPress }: TurfCardProps) {
 
               {/* RIGHT: PRICE & AMENITIES */}
               <View className="items-end">
-                <Text className="text-xl font-sans-extrabold text-white mb-4">
+                <Text className="text-xl font-sans-extrabold text-white mb-3">
                   ₹{Math.round(turf.price_per_hour)}
                 </Text>
-                <View className="flex-row gap-2.5 items-center">
+                <View className="flex-row gap-2.5">
                   {turf.amenities?.parking && (
-                    <AmenityIcon source={PARKING_ICON} />
+                    <Image
+                      source={PARKING_ICON}
+                      className="size-4"
+                      style={{ tintColor: "white" }}
+                    />
                   )}
-                  {turf.amenities?.gallery && (
-                    <AmenityIcon source={SEAT_ICON} />
+                  {turf.amenities?.lights && (
+                    <Image
+                      source={LIGHT_ICON}
+                      className="size-4"
+                      style={{ tintColor: "white" }}
+                    />
+                  )}
+                  {turf.amenities?.water && (
+                    <Image
+                      source={WATER_ICON}
+                      className="size-4"
+                      style={{ tintColor: "white" }}
+                    />
                   )}
                   {turf.amenities?.washrooms && (
-                    <AmenityIcon source={RESTROOM_ICON} />
+                    <Image
+                      source={RESTROOM_ICON}
+                      className="size-4"
+                      style={{ tintColor: "white" }}
+                    />
                   )}
-                  {turf.amenities?.water && <AmenityIcon source={WATER_ICON} />}
-                  {turf.amenities?.lights && (
-                    <AmenityIcon source={LIGHT_ICON} />
+                  {turf.amenities?.gallery && (
+                    <Image
+                      source={SEAT_ICON}
+                      className="size-4"
+                      style={{ tintColor: "white" }}
+                    />
                   )}
                 </View>
               </View>
@@ -123,16 +129,5 @@ export default function TurfCard({ turf, onPress }: TurfCardProps) {
         </View>
       </ImageBackground>
     </TouchableOpacity>
-  );
-}
-
-function AmenityIcon({ source }: { source: any }) {
-  return (
-    <Image
-      source={source}
-      className="size-4"
-      style={{ tintColor: "white" }}
-      resizeMode="contain"
-    />
   );
 }
