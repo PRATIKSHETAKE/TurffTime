@@ -1,17 +1,18 @@
 import React, { useEffect } from "react";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, TouchableOpacity, Text, Image, Dimensions } from "react-native";
+import { View, TouchableOpacity, Image, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useAnimatedStyle,
   withSpring,
   useSharedValue,
+  FadeInDown,
+  FadeOutDown,
 } from "react-native-reanimated";
 import "../../global.css";
 
-// 1. Match the filename: 'home_grounds'
-type TabName = "home" | "bookings" | "home_grounds" | "accounts";
+type TabName = "home" | "bookings" | "grounds" | "accounts";
 
 const icons: Record<TabName, { solid: any; outlined: any }> = {
   home: {
@@ -22,17 +23,18 @@ const icons: Record<TabName, { solid: any; outlined: any }> = {
     solid: require("../../assets/icons/calendar-solid.png"),
     outlined: require("../../assets/icons/calender-outlined.png"),
   },
-  home_grounds: {
-    // Updated key to match filename
+  grounds: {
     solid: require("../../assets/icons/ground-solid.png"),
     outlined: require("../../assets/icons/ground-outlined.png"),
   },
-  accounts: { solid: null, outlined: null },
+  accounts: {
+    solid: require("../../assets/icons/account-solid.png"),
+    outlined: require("../../assets/icons/account-outlined.png"),
+  },
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const ORIGINAL_WIDTH = SCREEN_WIDTH - 48;
-const NAV_WIDTH = ORIGINAL_WIDTH * 0.85; // Slightly wider for 4 tabs
+const NAV_WIDTH = (SCREEN_WIDTH - 48) * 0.9;
 const TAB_WIDTH = NAV_WIDTH / 4;
 
 function MyTabBar({ state, navigation }: any) {
@@ -41,9 +43,8 @@ function MyTabBar({ state, navigation }: any) {
 
   useEffect(() => {
     translateX.value = withSpring(state.index * TAB_WIDTH, {
-      damping: 14,
-      stiffness: 150,
-      mass: 0.8,
+      damping: 110,
+      stiffness: 1000,
     });
   }, [state.index]);
 
@@ -53,15 +54,15 @@ function MyTabBar({ state, navigation }: any) {
 
   return (
     <View
-      className="absolute self-center flex-row items-center bg-white rounded-full shadow-2xl border border-black/5"
+      className="nav-main"
       style={{
         width: NAV_WIDTH,
+        height: 64,
         bottom: insets.bottom > 0 ? insets.bottom : 20,
-        height: 72,
       }}
     >
       <Animated.View
-        className="absolute h-[80%] bg-accent/10 rounded-full"
+        className="nav-active-pill"
         style={[
           { width: TAB_WIDTH - 8, marginHorizontal: 4 },
           animatedPillStyle,
@@ -72,66 +73,45 @@ function MyTabBar({ state, navigation }: any) {
         const isFocused = state.index === index;
         const routeName = route.name as TabName;
 
-        // SAFE CHECK: If the route isn't in our icon list, skip rendering to prevent crash
-        if (!icons[routeName] && routeName !== "accounts") return null;
-
-        const onPress = () => {
-          const event = navigation.emit({
-            type: "tabPress",
-            target: route.key,
-            canPreventDefault: true,
-          });
-          if (!isFocused && !event.defaultPrevented)
-            navigation.navigate(route.name);
-        };
-
         const getLabel = (name: string) => {
-          if (name === "home_grounds") return "Grounds";
+          if (name === "grounds") return "Grounds";
           if (name === "accounts") return "Profile";
           return name;
         };
 
+        const baseSize = routeName === "grounds" ? 29 : 23;
+        const finalIconSize = isFocused ? baseSize * 0.8 : baseSize;
+
         return (
           <TouchableOpacity
             key={route.key}
-            onPress={onPress}
-            activeOpacity={0.6}
+            onPress={() => navigation.navigate(route.name)}
+            className="nav-tab-item"
             style={{ width: TAB_WIDTH }}
-            className="items-center justify-center pt-1"
           >
-            <View className="items-center justify-center mb-0.5">
-              {routeName === "accounts" ? (
-                <View
-                  className={`size-7 rounded-full items-center justify-center ${isFocused ? "bg-accent" : "bg-primary/10"}`}
+            <View className="items-center justify-center">
+              <Animated.Image
+                source={
+                  isFocused ? icons[routeName].solid : icons[routeName].outlined
+                }
+                style={{
+                  width: finalIconSize,
+                  height: finalIconSize,
+                  tintColor: isFocused ? "#ea7a53" : "#08112640",
+                }}
+                resizeMode="contain"
+              />
+              {isFocused && (
+                <Animated.Text
+                  entering={FadeInDown.duration(200)}
+                  exiting={FadeOutDown.duration(150)}
+                  className="nav-label"
+                  style={{ fontSize: 12, fontWeight: 900, marginTop: 2 }}
                 >
-                  <Text
-                    className={`text-[8px] font-sans-bold ${isFocused ? "text-white" : "text-primary"}`}
-                  >
-                    PS
-                  </Text>
-                </View>
-              ) : (
-                <Image
-                  source={
-                    isFocused
-                      ? icons[routeName].solid
-                      : icons[routeName].outlined
-                  }
-                  style={{
-                    width: 20,
-                    height: 20,
-                    tintColor: isFocused ? "#ea7a53" : "#08112640",
-                  }}
-                  resizeMode="contain"
-                />
+                  {getLabel(route.name)}
+                </Animated.Text>
               )}
             </View>
-            <Text
-              style={{ fontSize: 9 }}
-              className={`font-sans-bold capitalize ${isFocused ? "text-accent" : "text-primary/30"}`}
-            >
-              {getLabel(route.name)}
-            </Text>
           </TouchableOpacity>
         );
       })}
@@ -149,7 +129,7 @@ export default function TabLayout() {
       >
         <Tabs.Screen name="home" />
         <Tabs.Screen name="bookings" />
-        <Tabs.Screen name="home_grounds" />
+        <Tabs.Screen name="grounds" />
         <Tabs.Screen name="accounts" />
       </Tabs>
     </>
