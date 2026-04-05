@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { Tabs } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, TouchableOpacity, Image, Dimensions } from "react-native";
+import { View, TouchableOpacity, Text, Dimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useAnimatedStyle,
@@ -10,11 +10,16 @@ import Animated, {
   FadeInDown,
   FadeOutDown,
 } from "react-native-reanimated";
+import { useAuth } from "../../context/AuthContext"; // Ensure this path is correct
 import "../../global.css";
 
 type TabName = "home" | "bookings" | "grounds" | "accounts";
 
-const icons: Record<TabName, { solid: any; outlined: any }> = {
+// We keep the map for others, but accounts will be handled separately
+const icons: Record<
+  Exclude<TabName, "accounts">,
+  { solid: any; outlined: any }
+> = {
   home: {
     solid: require("../../assets/icons/home-solid.png"),
     outlined: require("../../assets/icons/home-outlined.png"),
@@ -27,10 +32,6 @@ const icons: Record<TabName, { solid: any; outlined: any }> = {
     solid: require("../../assets/icons/ground-solid.png"),
     outlined: require("../../assets/icons/ground-outlined.png"),
   },
-  accounts: {
-    solid: require("../../assets/icons/account-solid.png"),
-    outlined: require("../../assets/icons/account-outlined.png"),
-  },
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -39,6 +40,7 @@ const TAB_WIDTH = NAV_WIDTH / 4;
 
 function MyTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth(); // 1. Pull user data from context
   const translateX = useSharedValue(0);
 
   useEffect(() => {
@@ -51,6 +53,13 @@ function MyTabBar({ state, navigation }: any) {
   const animatedPillStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
   }));
+
+  // 2. Extract Initials Logic
+  const getInitials = () => {
+    const first = user?.first_name?.charAt(0) || "";
+    const last = user?.last_name?.charAt(0) || "";
+    return (first + last).toUpperCase() || "P";
+  };
 
   return (
     <View
@@ -90,23 +99,52 @@ function MyTabBar({ state, navigation }: any) {
             style={{ width: TAB_WIDTH }}
           >
             <View className="items-center justify-center">
-              <Animated.Image
-                source={
-                  isFocused ? icons[routeName].solid : icons[routeName].outlined
-                }
-                style={{
-                  width: finalIconSize,
-                  height: finalIconSize,
-                  tintColor: isFocused ? "#ea7a53" : "#08112640",
-                }}
-                resizeMode="contain"
-              />
+              {/* 3. DYNAMIC CONTENT: Avatar for Accounts, Icons for others */}
+              {routeName === "accounts" ? (
+                <View
+                  style={{
+                    width: finalIconSize + 2,
+                    height: finalIconSize + 2,
+                    borderRadius: 100,
+                    backgroundColor: isFocused ? "#ea7a53" : "transparent",
+                    borderWidth: isFocused ? 0 : 1.5,
+                    borderColor: "#08112640",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: isFocused ? 9 : 10,
+                      fontWeight: "900",
+                      color: isFocused ? "white" : "#08112640",
+                    }}
+                  >
+                    {getInitials()}
+                  </Text>
+                </View>
+              ) : (
+                <Animated.Image
+                  source={
+                    isFocused
+                      ? (icons as any)[routeName].solid
+                      : (icons as any)[routeName].outlined
+                  }
+                  style={{
+                    width: finalIconSize,
+                    height: finalIconSize,
+                    tintColor: isFocused ? "#ea7a53" : "#08112640",
+                  }}
+                  resizeMode="contain"
+                />
+              )}
+
               {isFocused && (
                 <Animated.Text
                   entering={FadeInDown.duration(200)}
                   exiting={FadeOutDown.duration(150)}
                   className="nav-label"
-                  style={{ fontSize: 12, fontWeight: 900, marginTop: 2 }}
+                  style={{ fontSize: 11, fontWeight: "900", marginTop: 2 }}
                 >
                   {getLabel(route.name)}
                 </Animated.Text>

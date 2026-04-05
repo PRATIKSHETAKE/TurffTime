@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
+  FlatList,
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
@@ -11,42 +12,49 @@ import {
   Animated,
   StyleSheet,
   Platform,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { useFocusEffect } from "expo-router";
+
+// Components
 import TurfCard from "../../components/TurfCard";
 import DateSelector from "../../components/DateSelector";
 import CitySelector from "../../components/CitySelector";
+import UpcomingMatchCard from "../../components/UpcomingMatchCard";
+
+// Context & Utils
+import { useAuth } from "../../context/AuthContext";
+import { API_BASE } from "../../utils/constants";
 import "../../global.css";
 
 const SEARCH_ICON = require("../../assets/icons/search.png");
-const API_BASE = "http://192.168.31.243:8000";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
 
-  // --- REFERENCES ---
   const scrollY = useRef(new Animated.Value(0)).current;
-  const listRef = useRef<FlatList>(null); // 1. Create a reference for the FlatList
+  const listRef = useRef<FlatList>(null);
 
-  // --- STATE ---
-  const [turfs, setTurfs] = useState<Turf[]>([]);
+  const [turfs, setTurfs] = useState<any[]>([]);
+  const [upcomingBookings, setUpcomingBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentCity, setCurrentCity] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // --- ANIMATIONS ---
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 50],
-    outputRange: [1, 0],
-    extrapolate: "clamp",
-  });
-
-  const dateSelectorOpacity = scrollY.interpolate({
-    inputRange: [40, 100],
     outputRange: [1, 0],
     extrapolate: "clamp",
   });
@@ -57,29 +65,52 @@ export default function HomeScreen() {
     extrapolate: "clamp",
   });
 
-  const fetchTurfs = async (isSilent = false) => {
+  const fetchDashboardData = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     else setRefreshing(true);
+
     try {
-      const response = await fetch(`${API_BASE}/turfs`);
-      const data = await response.json();
-      setTurfs(data);
+      const turfRes = await fetch(`${API_BASE}/turfs`);
+      if (turfRes.ok) setTurfs(await turfRes.json());
+
+      if (user?.id) {
+        const bookRes = await fetch(`${API_BASE}/bookings/user/${user.id}`);
+        if (bookRes.ok) {
+          const allBookings = await bookRes.json();
+
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const upcoming = allBookings.filter((b: any) => {
+            const bDate = new Date(b.booking_date);
+            return b.status.toLowerCase() === "confirmed" && bDate >= today;
+          });
+
+          upcoming.sort(
+            (a: any, b: any) =>
+              new Date(a.booking_date).getTime() -
+              new Date(b.booking_date).getTime(),
+          );
+
+          setUpcomingBookings(upcoming);
+        }
+      }
     } catch (e) {
-      console.error("Fetch failed:", e);
+      console.error("Dashboard Fetch failed:", e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    fetchTurfs();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchDashboardData(true);
+    }, [user]),
+  );
 
-  // 2. Function to scroll to the very top
-  const scrollToTop = () => {
+  const scrollToTop = () =>
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
-  };
 
   const toggleSearch = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -87,15 +118,56 @@ export default function HomeScreen() {
     if (isSearchActive) setSearchQuery("");
   };
 
-  const filteredData = turfs.filter((t) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch =
-      t.name.toLowerCase().includes(q) || t.location.toLowerCase().includes(q);
-    const matchesCity = currentCity
-      ? t.location.toLowerCase().includes(currentCity.toLowerCase())
-      : true;
-    return matchesSearch && matchesCity;
-  });
+  const getDistance = (
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  };
+
+  const processedTurfs = turfs
+    .filter((t) => {
+      const q = searchQuery.toLowerCase();
+      const matchesSearch =
+        t.name.toLowerCase().includes(q) ||
+        t.location.toLowerCase().includes(q);
+      const matchesCity = currentCity
+        ? t.city.toLowerCase() === currentCity.toLowerCase()
+        : true;
+      return matchesSearch && matchesCity;
+    })
+    .map((t) => {
+      if (userLocation && userLocation.lat !== 0 && t.latitude && t.longitude) {
+        return {
+          ...t,
+          distance: getDistance(
+            userLocation.lat,
+            userLocation.lng,
+            t.latitude,
+            t.longitude,
+          ),
+        };
+      }
+      return { ...t, distance: null };
+    })
+    .sort((a, b) => {
+      if (a.distance !== null && b.distance !== null)
+        return a.distance - b.distance;
+      if (a.distance !== null) return -1;
+      if (b.distance !== null) return 1;
+      return 0;
+    });
 
   return (
     <View className="flex-1 bg-[#fffaf9]">
@@ -115,7 +187,6 @@ export default function HomeScreen() {
           justifyContent: "space-between",
         }}
       >
-        {/* 3. Wrap Sticky Date in TouchableOpacity to trigger scrollToTop */}
         <Animated.View style={{ opacity: stickyDateOpacity }}>
           {!isSearchActive && (
             <TouchableOpacity
@@ -133,7 +204,7 @@ export default function HomeScreen() {
                 </Text>
               </View>
               <Text className="text-primary/40 text-[10px] font-sans-bold uppercase tracking-widest">
-                {currentCity || "Kolhapur"}
+                {currentCity || "City"}
               </Text>
             </TouchableOpacity>
           )}
@@ -165,15 +236,15 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* --- CONTENT --- */}
+      {/* --- MAIN CONTENT LIST --- */}
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#ea7a53" size="large" />
         </View>
       ) : (
         <Animated.FlatList
-          ref={listRef} // 4. Connect the reference here
-          data={filteredData}
+          ref={listRef}
+          data={processedTurfs}
           keyExtractor={(item) => item.id.toString()}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
@@ -182,28 +253,64 @@ export default function HomeScreen() {
           scrollEventThrottle={16}
           ListHeaderComponent={
             <View style={{ paddingTop: insets.top + 10 }}>
+              {/* 1. WELCOME HEADER */}
               <Animated.View
                 style={{ opacity: isSearchActive ? 0 : headerOpacity }}
-                className="px-6 mb-6 pr-14"
+                className="px-6 pr-14"
               >
                 <Text className="text-[22px] font-sans-bold text-primary leading-tight">
                   Welcome to the field,{" "}
-                  <Text className="text-accent">Pratik</Text>
+                  <Text className="text-accent">
+                    {user?.first_name || "Player"}
+                  </Text>
                 </Text>
-                <CitySelector onCityChange={(city) => setCurrentCity(city)} />
               </Animated.View>
 
-              <Animated.View style={{ opacity: dateSelectorOpacity }}>
-                <DateSelector
-                  onDateChange={(d) => {
-                    setSelectedDate(d);
-                    fetchTurfs(true);
-                  }}
+              {/* 2. LOCATION SELECTOR */}
+              <Animated.View
+                style={{ opacity: isSearchActive ? 0 : headerOpacity }}
+                className="px-6 mb-3"
+              >
+                <CitySelector
+                  currentCity={currentCity}
+                  onCityChange={(city) => setCurrentCity(city)}
+                  onLocationDetect={(lat, lng) => setUserLocation({ lat, lng })}
                 />
               </Animated.View>
 
+              {/* 3. DATE SELECTOR */}
+              <View className="">
+                <DateSelector
+                  onDateChange={(d) => {
+                    setSelectedDate(d);
+                    fetchDashboardData(true);
+                  }}
+                />
+              </View>
+
+              {/* 4. UPCOMING MATCHES */}
+              {!isSearchActive && upcomingBookings.length > 0 && (
+                <View className="mb-8 mt-2">
+                  <Text className="px-6 text-primary font-sans-bold uppercase text-[12px] tracking-[3px] mb-3">
+                    Your Next Matches
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{
+                      paddingHorizontal: 24,
+                      paddingRight: 40,
+                    }}
+                  >
+                    {upcomingBookings.map((match) => (
+                      <UpcomingMatchCard key={match.id} match={match} />
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
               {refreshing && (
-                <View className="items-center mb-4">
+                <View className="items-center mb-4 mt-2">
                   <ActivityIndicator color="#ea7a53" size="small" />
                 </View>
               )}
@@ -214,12 +321,21 @@ export default function HomeScreen() {
               <TurfCard turf={item} />
             </View>
           )}
+          ListEmptyComponent={
+            <View className="px-6 py-10 items-center">
+              <Text className="font-sans-medium text-primary/50 text-center">
+                {currentCity
+                  ? `No turfs currently available in ${currentCity}.`
+                  : "No turfs found."}
+              </Text>
+            </View>
+          }
           contentContainerStyle={{ paddingBottom: 140 }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => fetchTurfs(true)}
+              onRefresh={() => fetchDashboardData(true)}
               tintColor="#ea7a53"
             />
           }

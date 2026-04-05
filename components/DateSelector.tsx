@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Image } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-const CALENDAR_ICON = require("../assets/icons/calendar-solid.png");
+const CALENDAR_ICON = require("../assets/icons/calender-outlined.png");
 
 interface DateSelectorProps {
   onDateChange: (date: Date) => void;
@@ -13,7 +13,7 @@ export default function DateSelector({ onDateChange }: DateSelectorProps) {
   const [showPicker, setShowPicker] = useState(false);
 
   // 1. Generate the standard 4 quick-access days
-  const quickDates = Array.from({ length: 4 }).map((_, i) => {
+  const quickDates = Array.from({ length: 5 }).map((_, i) => {
     const date = new Date();
     date.setDate(date.getDate() + i);
     return date;
@@ -42,7 +42,7 @@ export default function DateSelector({ onDateChange }: DateSelectorProps) {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 24, gap: 13 }}
+        contentContainerStyle={{ paddingHorizontal: 24, gap: 16 }}
       >
         {/* Render Quick Access Dates */}
         {quickDates.map((date, index) => {
@@ -63,7 +63,7 @@ export default function DateSelector({ onDateChange }: DateSelectorProps) {
         {/* --- DYNAMIC CALENDAR CARD --- */}
         <TouchableOpacity
           onPress={() => setShowPicker(true)}
-          className={`w-16 h-20 rounded-[19px] border-2 items-center justify-center bg-white ${
+          className={`w-12 h-16 rounded-[14px] border-2 items-center justify-center bg-white ${
             !isSelectedInQuickDates ? "border-accent" : "border-primary/10"
           }`}
         >
@@ -119,7 +119,7 @@ function DateCard({
   return (
     <TouchableOpacity
       onPress={onPress}
-      className={`w-16 h-20 rounded-[19px] border-2 items-center justify-center bg-white ${
+      className={`w-12 h-16 rounded-[14px] border-2 items-center justify-center bg-white ${
         isSelected ? "border-accent" : "border-primary/10"
       }`}
     >
